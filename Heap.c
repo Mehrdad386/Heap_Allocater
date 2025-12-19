@@ -9,7 +9,7 @@ struct chunk_t{
 };
 
 struct heap_t{
-    struct chunk *start;
+    struct chunk_t *start;
     uint32_t avail; // available memory
 };
 
