@@ -12,6 +12,10 @@ struct heap_t{
     uint32_t avail; // available memory
 };
 
+void hinit (struct heap_t* h){
+    h->start = NULL ;
+    h->avail = 0 ;
+}
 
 int main()
 {
