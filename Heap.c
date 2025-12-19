@@ -24,6 +24,15 @@ int hinit (struct heap_t* h , void *mem , uint32_t size){
         return -1 ;
     }
 
+    //prevent re-initializaation of an already initialized heap
+    //if h.start != NUlL it means the heaap was initiaalized before and re-initialization will corrupt heap structure
+    if(h->start != NULL){
+        errno = EBUSY ; //the heap is a resource , and it is alreaady in use
+        return -1 ;
+    }
+
+
+
 
 }
 
