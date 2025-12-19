@@ -17,12 +17,12 @@ void hinit (struct heap_t* h){
     h->avail = 0 ;
 }
 
-void halloc (struct heap_t* h , size_t size){
+void *halloc (struct heap_t* h , size_t size){
 
 }
 
 void hfree (struct heap_t* h , void* ptr){
-    
+
 }
 
 int main()
