@@ -31,7 +31,13 @@ int hinit (struct heap_t* h , void *mem , uint32_t size){
         return -1 ;
     }
 
-
+    //check for minimum required memory size
+    //the heam must contain at least one chunk
+    // size <= size of chunk means that we do not have even one chunk so error will occur
+    if(size <= sizeof(struct chunk_t)){
+        errno = ENOMEM ; //it indicates insufficient memory
+        return -1 ;
+    }
 
 
 }
