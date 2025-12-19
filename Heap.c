@@ -17,6 +17,10 @@ void hinit (struct heap_t* h){
     h->avail = 0 ;
 }
 
+void halloc (struct heap_t* h){
+    
+}
+
 int main()
 {
     return 0;
