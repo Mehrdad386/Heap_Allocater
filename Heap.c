@@ -21,6 +21,10 @@ void halloc (struct heap_t* h , size_t size){
 
 }
 
+void hfree (struct heap_t* h , void* ptr){
+    
+}
+
 int main()
 {
     return 0;
