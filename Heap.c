@@ -40,6 +40,16 @@ int hinit (struct heap_t* h , void *mem , uint32_t size){
     }
 
 
+    first = (struct chunk_t *) mem ; 
+    first->size = size - sizeof(struct chunk_t) ;
+    first->inuse = 0 ;
+    first->next = NULL ;
+
+
+    h->start = first ;
+    h->avail = first->size ;
+
+
 }
 
 void *halloc (struct heap_t* h , size_t size){
