@@ -52,9 +52,11 @@ int hinit (struct heap_t* h , void *mem , uint32_t size){
     h->start = first ; //attach the first chunk to heap structure
     h->avail = first->size ; // initialize available memory counter (this value decrease in allocation and increase in deaallocation)
 
+    return 0 ;
 }
 
-void *halloc (struct heap_t* h , size_t size){
+//to allocate size(name of varible) bytes from memory and return a pointer to the allocated space
+void *halloc (size_t size){
 
     struct chunk_t *chunk ;
     size_t total_size ;
@@ -97,8 +99,39 @@ void *halloc (struct heap_t* h , size_t size){
 
 }
 
-void hfree (struct heap_t* h , void* ptr){
+//frees dynamically allocated memory obtained by virtualHalloc
+//ptr : pointer returned by halloc
+void hfree (void* ptr){
+    struct chunk_t *chunk ;
 
+    //check for null pointer
+    if(ptr == NULL){
+        return;
+    }
+
+    //calculate the address of chunck metadataa
+    //user pointer points to payload so we subtract size of chunck from it to get metas
+    chunk = (struct chunk_t *)((uint8_t *)ptr - sizeof(struct chunk_t)) ;
+
+    //ensure the chunk was actually allocated
+    if (!chunk->inuse){
+        errno = EINVAL ; //invalid
+        return;
+    }
+
+    chunk->inuse = 0 ; //mark chunk as free
+
+    //release memory back to the OS
+
+
+    //parameters :
+    //IP address
+    //dwSize : free the entire region allocated by virtual aalloc
+    // dwFreeType : MEM_RELEASE : release the allocation
+    //returns 0 on failure and non zero on success
+    if(!VirtualFree(chunk , 0 , MEM_RELEASE)){
+        errno = EFAULT ; //could not release memory
+    }
 }
 
 int main()
