@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <errno.h>
 
 struct chunk_t{
     uint32_t size;
@@ -12,9 +13,18 @@ struct heap_t{
     uint32_t avail; // available memory
 };
 
-void hinit (struct heap_t* h){
-    h->start = NULL ;
-    h->avail = 0 ;
+int hinit (struct heap_t* h , void *mem , uint32_t size){
+    struct chunk_t *first ; //creating first node of our linked_list of chunks
+
+    //validate input pointers
+    //if h == NULL , we can't write heap metadata
+    //if mem == NULL , there is no memory to build the heap on
+    if(h== NULL || mem == NULL){
+        errno = EFAULT ; //invalid memory access and bad addressing error
+        return -1 ;
+    }
+
+
 }
 
 void *halloc (struct heap_t* h , size_t size){
