@@ -16,7 +16,7 @@ struct heap_t{
 
 //this function is for initializing heap
 //notes : void* mem is a pointer to our memory with no type or limit (raw memory)
-int hinit (struct heap_t* h , void *mem , uint32_t size){
+int hinit (struct heap_t *h , void *mem , uint32_t size){
     struct chunk_t *first ; //creating first node of our linked_list of chunks
 
     //validate input pointers
@@ -56,7 +56,7 @@ int hinit (struct heap_t* h , void *mem , uint32_t size){
 }
 
 //to allocate size(name of varible) bytes from memory and return a pointer to the allocated space
-void *halloc (size_t size){
+void *halloc (struct heap_t *h , size_t size){
 
     struct chunk_t *chunk ;
     size_t total_size ;
@@ -80,7 +80,7 @@ void *halloc (size_t size){
 
     //check for allocation failure
     //virtualAlloc returns NULL on failure
-    if(mem = NULL){
+    if(mem == NULL){
         errno = ENOMEM ; // not enough memory
         return NULL ;
     }
@@ -101,7 +101,7 @@ void *halloc (size_t size){
 
 //frees dynamically allocated memory obtained by virtualHalloc
 //ptr : pointer returned by halloc
-void hfree (void* ptr){
+void hfree (struct heap_t *h ,void* ptr){
     struct chunk_t *chunk ;
 
     //check for null pointer
