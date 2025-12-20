@@ -3,15 +3,21 @@
 #include <errno.h>
 #include<windows.h>
 
+#define CHUNK_MAGIC 0xDEADBEEF //magic vaalue for chunk
+#define MAX_ACTIVE_ALLOCS 10 //it can be changed but if we do more than it , it means sparying happened
+
 struct chunk_t{
     uint32_t size;
     uint8_t inuse; // boolean
+    uint32_t magic ; // Magic value to detect corruption if heap is overwritten magic will be corrupted
+    uint32_t size ;
     struct chunk_t *next;
 };
 
 struct heap_t{
     struct chunk_t *start;
     uint32_t avail; // available memory
+    uint32_t active_allocs ; //number of active allocations
 };
 
 //this function is for initializing heap
@@ -47,17 +53,23 @@ int hinit (struct heap_t *h , void *mem , uint32_t size){
     first->size = size - sizeof(struct chunk_t) ; //initializing the chunk size (total minus metadata)
     first->inuse = 0 ; //mark the chunk as free for allocation (0 means free)
     first->next = NULL ; //since it is the only chunk at initialization
+    first->magic = CHUNK_MAGIC ;
 
 
     h->start = first ; //attach the first chunk to heap structure
     h->avail = first->size ; // initialize available memory counter (this value decrease in allocation and increase in deaallocation)
-
+    h->active_allocs = 0 ; //initialize allocation counter
     return 0 ;
 }
 
 //to allocate size(name of varible) bytes from memory and return a pointer to the allocated space
 void *halloc(struct heap_t *h, size_t size)
 {
+    if(h->active_allocs >= MAX_ACTIVE_ALLOCS){
+        errno = EOVERFLOW ; //overflow occured
+        return NULL ;
+    }
+
     struct chunk_t *current;
     struct chunk_t *new_chunk;
 
@@ -113,6 +125,12 @@ void *halloc(struct heap_t *h, size_t size)
             // Update available memory in heap
             h->avail -= current->size;
 
+            //set magic value fo integrity checking
+            current->magic = CHUNK_MAGIC ;
+
+            //increase active allocation counter
+            h->active_allocs++;
+
             // Return pointer to payload (skip metadata)
             return (void *)((uint8_t *)current + sizeof(struct chunk_t));
         }
@@ -157,6 +175,12 @@ void hfree(struct heap_t *h, void *ptr)
     // Start from heap beginning to find this chunk
     current = h->start;
 
+    //detect heap corruption or fake chunk
+    if(chunk->magic != CHUNK_MAGIC){
+        errno = EFAULT; // heap corruption detected
+        return;
+    }
+
     // Traverse chunks to find neighbors for merging
     while (current != NULL) {
 
@@ -177,6 +201,10 @@ void hfree(struct heap_t *h, void *ptr)
 
         // Move to next chunk
         current = current->next;
+    }
+    //decrese active allocation counter
+    if(h->active_allocs > 0){
+        h->active_allocs--;
     }
 }
 
