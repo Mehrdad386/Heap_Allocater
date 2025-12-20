@@ -180,7 +180,83 @@ void hfree(struct heap_t *h, void *ptr)
     }
 }
 
-int main()
+int main(void)
 {
+    struct heap_t heap = {0} ;           // Our single heap instance
+    void *memory;                 // Raw memory buffer for the heap
+    void *p1, *p2, *p3;            // Test allocation pointers
+    uint32_t heap_size = 1024;     // Total heap size in bytes (1 KB)
+
+    // Allocate raw memory for the heap using VirtualAlloc
+    memory = VirtualAlloc(
+        NULL,                      // Let the OS choose the address
+        heap_size,                 // Total size of heap memory
+        MEM_RESERVE | MEM_COMMIT,  // Reserve and commit memory
+        PAGE_READWRITE             // Read/write access
+    );
+
+    // Check if raw memory allocation failed
+    if (memory == NULL) {
+        perror("VirtualAlloc failed");
+        return 1;
+    }
+
+    // Initialize the heap structure on top of raw memory
+    if (hinit(&heap, memory, heap_size) != 0) {
+        perror("hinit failed");
+        VirtualFree(memory, 0, MEM_RELEASE);
+        return 1;
+    }
+
+    printf("Heap initialized successfully\n");
+    printf("Available memory: %u bytes\n\n", heap.avail);
+
+    // Allocate first block
+    p1 = halloc(&heap, 100);
+    if (p1 == NULL) {
+        perror("halloc p1 failed");
+    } else {
+        printf("Allocated p1 (100 bytes)\n");
+        printf("Available memory: %u bytes\n\n", heap.avail);
+    }
+
+    // Allocate second block
+    p2 = halloc(&heap, 200);
+    if (p2 == NULL) {
+        perror("halloc p2 failed");
+    } else {
+        printf("Allocated p2 (200 bytes)\n");
+        printf("Available memory: %u bytes\n\n", heap.avail);
+    }
+
+    // Allocate third block
+    p3 = halloc(&heap, 50);
+    if (p3 == NULL) {
+        perror("halloc p3 failed");
+    } else {
+        printf("Allocated p3 (50 bytes)\n");
+        printf("Available memory: %u bytes\n\n", heap.avail);
+    }
+
+    // Free the second block
+    hfree(&heap, p2);
+    printf("Freed p2 (200 bytes)\n");
+    printf("Available memory: %u bytes\n\n", heap.avail);
+
+    // Free the first block
+    hfree(&heap, p1);
+    printf("Freed p1 (100 bytes)\n");
+    printf("Available memory: %u bytes\n\n", heap.avail);
+
+    // Free the third block
+    hfree(&heap, p3);
+    printf("Freed p3 (50 bytes)\n");
+    printf("Available memory: %u bytes\n\n", heap.avail);
+
+    // Release the entire heap memory back to the OS
+    VirtualFree(memory, 0, MEM_RELEASE);
+
+    printf("Heap memory released. Test finished successfully.\n");
+
     return 0;
 }
