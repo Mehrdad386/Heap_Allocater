@@ -56,81 +56,127 @@ int hinit (struct heap_t *h , void *mem , uint32_t size){
 }
 
 //to allocate size(name of varible) bytes from memory and return a pointer to the allocated space
-void *halloc (struct heap_t *h , size_t size){
+void *halloc(struct heap_t *h, size_t size)
+{
+    struct chunk_t *current;
+    struct chunk_t *new_chunk;
 
-    struct chunk_t *chunk ;
-    size_t total_size ;
-    void *mem ;
-    
-    //the size of zero is not a valid allocation request
-    if(size ==0){
-        errno = EINVAL ; //invalid request
-        return NULL ;
+    // Validate heap pointer and requested size
+    if (h == NULL || size == 0) {
+        errno = EINVAL; // Invalid arguments
+        return NULL;
     }
 
-    total_size = size + sizeof(struct chunk_t) ; //total memory required
-
-    //we alloc memory using virtual alloc insteaad of mmap because we're on windows and have no access to mmap
-    mem = VirtualAlloc(
-        NULL, //IP address = null it means let the system choose the address
-        total_size, //dwSize = total_size
-        MEM_RESERVE | MEM_COMMIT, // f allocaation type : MEM_RESERVED : reserve the address space , MEM_COMMIT : allocates physical pages
-        PAGE_READWRITE //flProtect : PAGE_READWRITE : memory is readable and writable
-    );
-
-    //check for allocation failure
-    //virtualAlloc returns NULL on failure
-    if(mem == NULL){
-        errno = ENOMEM ; // not enough memory
-        return NULL ;
+    // If not enough available memory, fail early
+    if (size > h->avail) {
+        errno = ENOMEM; // Not enough memory in heap
+        return NULL;
     }
 
-    //Treat the begginning of allocated memory as chunk metadata
-    chunk = (struct chunk_t *) mem ; //type casting
+    // Start traversing chunks from the beginning of the heap
+    current = h->start;
 
-    //initialization metadata fields
-    chunk->size = size ; //number of bytes requested by user
-    chunk->inuse = 1 ; //it is in use
-    chunk->next = NULL ; //this chunk is standalone for now
+    // First-fit search for a free chunk with sufficient size
+    while (current != NULL) {
 
-    //return pointer to payload area , hiding metadata from user
-    //we add size of chunk to the base address to skip metadata
-    return (void *)((uint8_t *)mem + sizeof(struct chunk_t)) ;
+        // Check if this chunk is free and large enough
+        if (!current->inuse && current->size >= size) {
 
+            // Check if we can split the chunk
+            // We need space for requested size + metadata of a new chunk
+            if (current->size >= size + sizeof(struct chunk_t) + 1) {
+
+                // Create a new chunk after the allocated space
+                new_chunk = (struct chunk_t *)(
+                    (uint8_t *)current + sizeof(struct chunk_t) + size
+                );
+
+                // Set the size of the remaining free chunk
+                new_chunk->size = current->size - size - sizeof(struct chunk_t);
+
+                // Mark the new chunk as free
+                new_chunk->inuse = 0;
+
+                // Link the new chunk to the list
+                new_chunk->next = current->next;
+
+                // Shrink the current chunk to requested size
+                current->size = size;
+
+                // Link current chunk to the new chunk
+                current->next = new_chunk;
+            }
+
+            // Mark current chunk as in use
+            current->inuse = 1;
+
+            // Update available memory in heap
+            h->avail -= current->size;
+
+            // Return pointer to payload (skip metadata)
+            return (void *)((uint8_t *)current + sizeof(struct chunk_t));
+        }
+
+        // Move to the next chunk in the list
+        current = current->next;
+    }
+
+    // No suitable chunk found
+    errno = ENOMEM;
+    return NULL;
 }
 
 //frees dynamically allocated memory obtained by virtualHalloc
 //ptr : pointer returned by halloc
-void hfree (struct heap_t *h ,void* ptr){
-    struct chunk_t *chunk ;
+void hfree(struct heap_t *h, void *ptr)
+{
+    struct chunk_t *chunk;
+    struct chunk_t *current;
 
-    //check for null pointer
-    if(ptr == NULL){
+    // Validate input
+    if (h == NULL || ptr == NULL) {
+        errno = EINVAL;
         return;
     }
 
-    //calculate the address of chunck metadataa
-    //user pointer points to payload so we subtract size of chunck from it to get metas
-    chunk = (struct chunk_t *)((uint8_t *)ptr - sizeof(struct chunk_t)) ;
+    // Retrieve chunk metadata from payload pointer
+    chunk = (struct chunk_t *)((uint8_t *)ptr - sizeof(struct chunk_t));
 
-    //ensure the chunk was actually allocated
-    if (!chunk->inuse){
-        errno = EINVAL ; //invalid
+    // Prevent double free
+    if (!chunk->inuse) {
+        errno = EINVAL;
         return;
     }
 
-    chunk->inuse = 0 ; //mark chunk as free
+    // Mark the chunk as free
+    chunk->inuse = 0;
 
-    //release memory back to the OS
+    // Update available memory
+    h->avail += chunk->size;
 
+    // Start from heap beginning to find this chunk
+    current = h->start;
 
-    //parameters :
-    //IP address
-    //dwSize : free the entire region allocated by virtual aalloc
-    // dwFreeType : MEM_RELEASE : release the allocation
-    //returns 0 on failure and non zero on success
-    if(!VirtualFree(chunk , 0 , MEM_RELEASE)){
-        errno = EFAULT ; //could not release memory
+    // Traverse chunks to find neighbors for merging
+    while (current != NULL) {
+
+        // Merge with next chunk if both are free
+        if (!current->inuse &&
+            current->next != NULL &&
+            !current->next->inuse) {
+
+            // Increase current chunk size by next chunk size + metadata
+            current->size += sizeof(struct chunk_t) + current->next->size;
+
+            // Remove next chunk from list
+            current->next = current->next->next;
+
+            // Continue checking in case of multiple free neighbors
+            continue;
+        }
+
+        // Move to next chunk
+        current = current->next;
     }
 }
 
