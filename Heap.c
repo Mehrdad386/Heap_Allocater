@@ -10,7 +10,6 @@ struct chunk_t{
     uint32_t size;
     uint8_t inuse; // boolean
     uint32_t magic ; // Magic value to detect corruption if heap is overwritten magic will be corrupted
-    uint32_t size ;
     struct chunk_t *next;
 };
 
