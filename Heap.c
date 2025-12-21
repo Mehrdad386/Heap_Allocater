@@ -3,12 +3,19 @@
 #include <errno.h>
 #include<windows.h>
 
+// we have implemented 2 bonus features : heap sparying and garbage collection
+
 #define CHUNK_MAGIC 0xDEADBEEF //magic vaalue for chunk
 #define MAX_ACTIVE_ALLOCS 10 //it can be changed but if we do more than it , it means sparying happened
+#define MAX_ROOTS 32
+
+void *gc_roots[MAX_ROOTS] ; //array of active pointers
+uint32_t gc_root_count = 0 ; //number of registered roots
 
 struct chunk_t{
     uint32_t size;
     uint8_t inuse; // boolean
+    uint8_t marked ; //mark flag for mark and sweep garbage collection
     uint32_t magic ; // Magic value to detect corruption if heap is overwritten magic will be corrupted
     struct chunk_t *next;
 };
@@ -18,6 +25,93 @@ struct heap_t{
     uint32_t avail; // available memory
     uint32_t active_allocs ; //number of active allocations
 };
+
+//-----------------------------------------------------------GC SRARTS---------------------------------------------------------------------------
+//to register root after successful halloc
+void gc_register_root(void* ptr){
+    //check if root table is full
+    if(gc_root_count >= MAX_ROOTS){
+        return;
+    }
+    //store pointer in root list
+    gc_roots[gc_root_count++] = ptr ;
+}
+
+//removing root in hfree
+void gc_unregister_root (void *ptr){
+    uint32_t i ;
+    //search for pointer in root list
+    for(i=0 ; i<gc_root_count ; i++){
+        //if found then remove it
+        if(gc_roots[i] == ptr){
+            //move last root to this position
+            gc_roots[i] = gc_roots[gc_root_count - 1] ;
+            //decrese root count
+            gc_root_count--;
+            return;
+        }
+    }
+}
+
+//to mark chunks
+void gc_mark(struct heap_t *h){
+    struct chunk_t *chunk;
+    uint32_t i;
+
+    // First, clear all marks
+    chunk = h->start;
+    while (chunk != NULL) {
+        chunk->marked = 0;     // Reset mark
+        chunk = chunk->next;
+    }
+
+    // Mark chunks that are referenced by root pointers
+    for (i = 0; i < gc_root_count; i++) {
+
+        // Convert payload pointer back to chunk metadata
+        chunk = (struct chunk_t *)(
+            (uint8_t *)gc_roots[i] - sizeof(struct chunk_t)
+        );
+
+        // Mark the chunk as reachable
+        chunk->marked = 1;
+    }
+}
+
+//to free garbage
+void gc_sweep(struct heap_t *h)
+{
+    struct chunk_t *chunk;
+
+    // Traverse all chunks in the heap
+    chunk = h->start;
+    while (chunk != NULL) {
+
+        // If chunk is in use but not marked, it is garbage
+        if (chunk->inuse && !chunk->marked) {
+
+            // Convert metadata to payload pointer
+            void *payload = (uint8_t *)chunk + sizeof(struct chunk_t);
+
+            // Free unreachable memory
+            hfree(h, payload);
+        }
+
+        chunk = chunk->next;
+    }
+}
+
+//main garbage collector
+void gc_collect(struct heap_t *h)
+{
+    // Step 1: Mark reachable chunks
+    gc_mark(h);
+
+    // Step 2: Sweep unreachable chunks
+    gc_sweep(h);
+}
+
+//------------------------------------------------------------------------------------GC ENDS----------------------------------------------
 
 //this function is for initializing heap
 //notes : void* mem is a pointer to our memory with no type or limit (raw memory)
@@ -147,6 +241,7 @@ void *halloc(struct heap_t *h, size_t size)
 //ptr : pointer returned by halloc
 void hfree(struct heap_t *h, void *ptr)
 {
+    gc_unregister_root(ptr) ;
     struct chunk_t *chunk;
     struct chunk_t *current;
 
@@ -207,6 +302,8 @@ void hfree(struct heap_t *h, void *ptr)
     }
 }
 
+
+
 int main(void)
 {
     struct heap_t heap = {0} ;           // Our single heap instance
@@ -243,6 +340,7 @@ int main(void)
     if (p1 == NULL) {
         perror("halloc p1 failed");
     } else {
+        gc_register_root(p1);
         printf("Allocated p1 (100 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
@@ -252,6 +350,7 @@ int main(void)
     if (p2 == NULL) {
         perror("halloc p2 failed");
     } else {
+        gc_register_root(p2);
         printf("Allocated p2 (200 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
@@ -261,6 +360,7 @@ int main(void)
     if (p3 == NULL) {
         perror("halloc p3 failed");
     } else {
+        gc_register_root(p3);
         printf("Allocated p3 (50 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
