@@ -338,12 +338,13 @@ int main(void)
     printf("Heap initialized successfully\n");
     printf("Available memory: %u bytes\n\n", heap.avail);
 
+    // -------------------- Existing allocations --------------------
     // Allocate first block
     p1 = halloc(&heap, 100);
     if (p1 == NULL) {
         perror("halloc p1 failed");
     } else {
-        gc_register_root(p1);
+        gc_register_root(p1); // Register pointer for GC
         printf("Allocated p1 (100 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
@@ -353,7 +354,7 @@ int main(void)
     if (p2 == NULL) {
         perror("halloc p2 failed");
     } else {
-        gc_register_root(p2);
+        gc_register_root(p2); // Register pointer for GC
         printf("Allocated p2 (200 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
@@ -363,11 +364,12 @@ int main(void)
     if (p3 == NULL) {
         perror("halloc p3 failed");
     } else {
-        gc_register_root(p3);
+        gc_register_root(p3); // Register pointer for GC
         printf("Allocated p3 (50 bytes)\n");
         printf("Available memory: %u bytes\n\n", heap.avail);
     }
 
+    // -------------------- Existing frees --------------------
     // Free the second block
     hfree(&heap, p2);
     printf("Freed p2 (200 bytes)\n");
@@ -381,6 +383,31 @@ int main(void)
     // Free the third block
     hfree(&heap, p3);
     printf("Freed p3 (50 bytes)\n");
+    printf("Available memory: %u bytes\n\n", heap.avail);
+
+    // -------------------- Garbage Collection Test --------------------
+    // Allocate new blocks without registering one of them as root
+    void *p4 = halloc(&heap, 120);
+    if (p4 != NULL) {
+        gc_register_root(p4); // only register p4
+        printf("Allocated p4 (120 bytes) and registered for GC\n");
+    }
+
+    void *p5 = halloc(&heap, 80);
+    // Do NOT register p5, simulating "unreachable" memory
+    printf("Allocated p5 (80 bytes) WITHOUT registering for GC (should be garbage)\n");
+
+    printf("Available memory before GC: %u bytes\n", heap.avail);
+
+    // Run garbage collection
+    gc_collect(&heap); // p5 should be freed automatically
+
+    printf("Garbage collection performed\n");
+    printf("Available memory after GC: %u bytes\n\n", heap.avail);
+
+    // Free remaining registered root
+    hfree(&heap, p4);
+    printf("Freed p4 (120 bytes)\n");
     printf("Available memory: %u bytes\n\n", heap.avail);
 
     // Release the entire heap memory back to the OS
