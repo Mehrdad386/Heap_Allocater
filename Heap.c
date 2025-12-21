@@ -78,39 +78,6 @@ void gc_mark(struct heap_t *h){
     }
 }
 
-//to free garbage
-void gc_sweep(struct heap_t *h)
-{
-    struct chunk_t *chunk;
-
-    // Traverse all chunks in the heap
-    chunk = h->start;
-    while (chunk != NULL) {
-
-        // If chunk is in use but not marked, it is garbage
-        if (chunk->inuse && !chunk->marked) {
-
-            // Convert metadata to payload pointer
-            void *payload = (uint8_t *)chunk + sizeof(struct chunk_t);
-
-            // Free unreachable memory
-            hfree(h, payload);
-        }
-
-        chunk = chunk->next;
-    }
-}
-
-//main garbage collector
-void gc_collect(struct heap_t *h)
-{
-    // Step 1: Mark reachable chunks
-    gc_mark(h);
-
-    // Step 2: Sweep unreachable chunks
-    gc_sweep(h);
-}
-
 //------------------------------------------------------------------------------------GC ENDS----------------------------------------------
 
 //this function is for initializing heap
@@ -302,6 +269,42 @@ void hfree(struct heap_t *h, void *ptr)
     }
 }
 
+
+//---------------------GC STARTS---------------------------------------------------------------------------------------------------------
+//to free garbage
+void gc_sweep(struct heap_t *h)
+{
+    struct chunk_t *chunk;
+
+    // Traverse all chunks in the heap
+    chunk = h->start;
+    while (chunk != NULL) {
+
+        // If chunk is in use but not marked, it is garbage
+        if (chunk->inuse && !chunk->marked) {
+
+            // Convert metadata to payload pointer
+            void *payload = (uint8_t *)chunk + sizeof(struct chunk_t);
+
+            // Free unreachable memory
+            hfree(h, payload);
+        }
+
+        chunk = chunk->next;
+    }
+}
+
+//main garbage collector
+void gc_collect(struct heap_t *h)
+{
+    // Step 1: Mark reachable chunks
+    gc_mark(h);
+
+    // Step 2: Sweep unreachable chunks
+    gc_sweep(h);
+}
+
+//----------------------------------------------------------------GC ENDS---------------------------------------------------------------------------------------
 
 
 int main(void)
